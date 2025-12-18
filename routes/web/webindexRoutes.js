@@ -59,9 +59,9 @@ router.get('/index', async (req, res) => {
             0, orderBy
         );
        orderBy = {'column':'id','ascending':false};
-      // 获取三个月前的日期
-      const threeMonthsAgo = moment().subtract(3, 'months').format('YYYY-MM-DD HH:mm:ss');
-      console.log("threeMonthsAgo:",threeMonthsAgo);
+      // 获取一年前的日期
+      const oneYearAgo = moment().subtract(1, 'year').format('YYYY-MM-DD HH:mm:ss');
+      console.log("oneYearAgo:",oneYearAgo);
       
       // 先查询所有交易记录用于计算 Total（不限制时间）
       let allTrades = null;
@@ -80,8 +80,8 @@ router.get('/index', async (req, res) => {
       // 复制conditions数组以避免影响其他查询
       const tradeConditions = [...conditions];
     
-      // 添加entry_date为三个月以内的条件（用于前端显示）
-      tradeConditions.push({ type: 'gte', column: 'entry_date', value: threeMonthsAgo });
+      // 添加entry_date为一年以内的条件（用于前端显示）
+      tradeConditions.push({ type: 'gte', column: 'entry_date', value: oneYearAgo });
       console.log("tradeConditions:",tradeConditions)
       let trades=null
       try{
