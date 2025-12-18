@@ -62,12 +62,27 @@ router.get('/index', async (req, res) => {
       // 获取三个月前的日期
       const threeMonthsAgo = moment().subtract(3, 'months').format('YYYY-MM-DD HH:mm:ss');
       console.log("threeMonthsAgo:",threeMonthsAgo);
+      
+      // 先查询所有交易记录用于计算 Total（不限制时间）
+      let allTrades = null;
+      try {
+        allTrades = await select('view_trader_trade', '*', conditions,
+          null,
+          null, orderBy
+        );
+      } catch(error) {
+        console.error('Failed to fetch all trades:', error);
+      }
+      if (!allTrades) {
+        allTrades = [];
+      }
+      
       // 复制conditions数组以避免影响其他查询
       const tradeConditions = [...conditions];
     
-      // 添加entry_date为三个月以内的条件
+      // 添加entry_date为三个月以内的条件（用于前端显示）
       tradeConditions.push({ type: 'gte', column: 'entry_date', value: threeMonthsAgo });
-        console.log("tradeConditions:",tradeConditions)
+      console.log("tradeConditions:",tradeConditions)
       let trades=null
       try{
       trades= await select('view_trader_trade', '*', tradeConditions,
@@ -137,11 +152,20 @@ router.get('/index', async (req, res) => {
           Monthly+=parseFloat(item.Amount/item.exchange_rate)
           }
         })
+        // 计算 Total：使用所有历史交易记录（不限制3个月）
         let Total=0;
-         const allList= trades.filter((item)=>item.exit_date)
-          allList.forEach((item)=>{
-            Total+=parseFloat(item.Amount/item.exchange_rate)
-          })
+        // 格式化所有交易记录用于计算 Total
+        const allTradesFormatted = allTrades.map(item => ({
+          ...item,
+          Market_Value:(item.exit_price && item.exit_date)?(item.exit_price * item.size).toFixed(2):(item.current_price * item.size).toFixed(2),
+          Ratio: (item.exit_price && item.exit_date)?((item.exit_price-item.entry_price)/item.entry_price * 100).toFixed(2):((item.current_price-item.entry_price)/item.entry_price * 100).toFixed(2),
+          Amount: (item.exit_price && item.exit_date)?((item.exit_price-item.entry_price )* item.size*item.direction).toFixed(2):((item.current_price-item.entry_price )* item.size*item.direction).toFixed(2),
+          status: (item.exit_price && item.exit_date)?  "Take Profit":"Active",
+        }));
+        const allList= allTradesFormatted.filter((item)=>item.exit_date)
+        allList.forEach((item)=>{
+          Total+=parseFloat(item.Amount/item.exchange_rate)
+        })
         users[0].total_trades = (users[0].total_trades || 0) + trades.length;
       res.status(200).json({ 
         success: true, 
