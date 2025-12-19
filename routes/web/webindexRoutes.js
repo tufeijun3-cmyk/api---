@@ -108,14 +108,45 @@ router.get('/index', async (req, res) => {
         console.log('📊 重点交易记录数量:', importantCount);
       }
        
-         // 格式化公告数据
-        trades = trades.map(item => ({
+      // 获取实时股票价格（仅对Active状态的交易）
+      const { get_real_time_price } = require('../../config/common');
+      const activeTrades = trades.filter(item => !item.exit_price || !item.exit_date);
+      const uniqueSymbols = [...new Set(activeTrades.map(item => item.symbol).filter(Boolean))];
+      
+      // 并发获取所有Active交易的实时价格
+      const priceMap = {};
+      if (uniqueSymbols.length > 0) {
+        const pricePromises = uniqueSymbols.map(async (symbol) => {
+          try {
+            // 从交易记录中获取market信息，默认使用'usa'
+            const trade = activeTrades.find(t => t.symbol === symbol);
+            const market = (trade && trade.trade_market) ? trade.trade_market.toLowerCase() : 'usa';
+            const price = await get_real_time_price(market, symbol);
+            if (price && price > 0) {
+              priceMap[symbol] = parseFloat(price);
+            }
+          } catch (error) {
+            console.error(`Error fetching price for ${symbol}:`, error);
+          }
+        });
+        await Promise.all(pricePromises);
+      }
+       
+         // 格式化公告数据，使用实时价格更新current_price
+        trades = trades.map(item => {
+          // 如果是Active状态且有实时价格，使用实时价格
+          const isActive = !item.exit_price || !item.exit_date;
+          const realTimePrice = isActive && priceMap[item.symbol] ? priceMap[item.symbol] : item.current_price;
+          
+          return {
             ...item,
-            Market_Value:(item.exit_price && item.exit_date)?(item.exit_price * item.size).toFixed(2):(item.current_price * item.size).toFixed(2),
-            Ratio: (item.exit_price && item.exit_date)?((item.exit_price-item.entry_price)/item.entry_price * 100).toFixed(2):((item.current_price-item.entry_price)/item.entry_price * 100).toFixed(2),
-            Amount: (item.exit_price && item.exit_date)?((item.exit_price-item.entry_price )* item.size*item.direction).toFixed(2):((item.current_price-item.entry_price )* item.size*item.direction).toFixed(2),
+            current_price: realTimePrice || item.current_price, // 使用实时价格或保留原值
+            Market_Value:(item.exit_price && item.exit_date)?(item.exit_price * item.size).toFixed(2):(realTimePrice * item.size).toFixed(2),
+            Ratio: (item.exit_price && item.exit_date)?((item.exit_price-item.entry_price)/item.entry_price * 100).toFixed(2):((realTimePrice-item.entry_price)/item.entry_price * 100).toFixed(2),
+            Amount: (item.exit_price && item.exit_date)?((item.exit_price-item.entry_price )* item.size*item.direction).toFixed(2):((realTimePrice-item.entry_price )* item.size*item.direction).toFixed(2),
             status: (item.exit_price && item.exit_date)?  "Take Profit":"Active",
-        }));
+          };
+        });
       
       // 在后端进行排序：重点交易置顶
       trades = trades.sort((a, b) => {

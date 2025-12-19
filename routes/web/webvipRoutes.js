@@ -524,17 +524,34 @@ router.post('/stock-prices', async (req, res) => {
       });
     }
 
-    // 模拟股票价格数据
-    const stockPrices = symbols.map(symbol => ({
-      symbol: symbol,
-      price: (Math.random() * 100 + 10).toFixed(2),
-      change: (Math.random() * 10 - 5).toFixed(2),
-      changePercent: (Math.random() * 10 - 5).toFixed(2)
-    }));
+    const { get_real_time_price } = require('../../config/common');
+    
+    // 获取真实的实时股票价格
+    const priceMap = {};
+    
+    // 并发获取所有股票价格
+    const pricePromises = symbols.map(async (symbol) => {
+      try {
+        // 默认使用 USA 市场，如果需要可以从交易记录中获取 market 信息
+        const price = await get_real_time_price('usa', symbol);
+        if (price && price > 0) {
+          priceMap[symbol] = parseFloat(price);
+        } else {
+          console.warn(`Failed to get price for ${symbol}, using null`);
+          priceMap[symbol] = null;
+        }
+      } catch (error) {
+        console.error(`Error fetching price for ${symbol}:`, error);
+        priceMap[symbol] = null;
+      }
+    });
+    
+    await Promise.all(pricePromises);
 
+    // 返回格式：{ symbol: price } 对象，方便前端使用
     res.status(200).json({
       success: true,
-      data: stockPrices
+      data: priceMap
     });
   } catch (error) {
     handleError(res, error, 'Failed to fetch stock prices');
