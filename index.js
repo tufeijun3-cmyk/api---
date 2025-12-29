@@ -100,10 +100,7 @@ const userStatisticsRoutes = require('./routes/userStatisticsRoutes');
 const questionBankRoutes = require('./routes/questionBankRoutes');
 const webdocumentRoutes = require('./routes/web/webdocumentRoutes');
 const partnerOrganizationsRoutes = require('./routes/partnerOrganizationsRoutes');
-<<<<<<< HEAD
 const paymentRecordsRoutes = require('./routes/paymentRecordsRoutes');
-=======
->>>>>>> 4673bc1854e99add1b2cbbf5ad8c88b229b9dbc6
 
 // 使用路由
 app.use('/api/users', usersRoutes);
@@ -138,10 +135,7 @@ app.use('/api/web/ai', webaiRoutes);
 app.use('/api/invitation-code', invitationCodeRoutes);
 app.use('/api/web/videos', webvideoRoutes);
 app.use('/api/partner-organizations', partnerOrganizationsRoutes);
-<<<<<<< HEAD
 app.use('/api/payment-records', paymentRecordsRoutes);
-=======
->>>>>>> 4673bc1854e99add1b2cbbf5ad8c88b229b9dbc6
 app.use('/api/web/documents', webdocumentRoutes);
 
 app.use('/api/web/test-gpt', testGptRoutes);
@@ -171,7 +165,6 @@ const server = app.listen(PORT, () => {
     // afterServerStart();
 });
 
-<<<<<<< HEAD
 // 定时任务初始化（如果存在）
 let afterServerStart;
 try {
@@ -190,21 +183,3 @@ try {
 
 // 导出应用（用于测试）
 module.exports = app;
-
-=======
-// 定时任务初始化
-const { initScheduler } = require('./scheduler');
-
-// 服务器启动后初始化定时任务
-afterServerStart = () => {
-  try {
-    initScheduler();
-  } catch (error) {
-    console.error('Failed to initialize scheduler:', error);
-  }
-};
-
-// 导出应用（用于测试）
-module.exports = app;
-// module.exports.afterServerStart = afterServerStart;
->>>>>>> 4673bc1854e99add1b2cbbf5ad8c88b229b9dbc6
