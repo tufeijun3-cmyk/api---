@@ -14,7 +14,7 @@ router.get('/', authenticateUser, authorizeAdmin, async (req, res) => {
     // 构建条件
     const conditions = [];
     if (search) {
-      conditions.push({'type':'like','column':'ILIKE','value':search});
+      conditions.push({'type':'ilike','column':'title','value':`%${search}%`});
     }
     if (ispublic !== undefined && ispublic!="") {
       conditions.push({'type':'eq','column':'ispublic','value':ispublic});
@@ -72,6 +72,7 @@ router.get('/:id', authenticateUser, authorizeAdmin, async (req, res) => {
 // 创建新的视频数据
 router.post('/', authenticateUser, authorizeAdmin, async (req, res) => {
   try {
+    const { title, description, video_url, ispublic } = req.body;
     
     // 输入验证
     if (!title || !video_url) {
@@ -83,10 +84,10 @@ router.post('/', authenticateUser, authorizeAdmin, async (req, res) => {
     
     const newVideo = await insert('videos', {
       title,
-      description,
+      description: description || '',
       video_url,
       trader_uuid: user && user.trader_uuid ? user.trader_uuid : null,
-      ispublic: 1 // 默认公开
+      ispublic: ispublic !== undefined ? ispublic : 1 // 默认公开
     });
     
     res.status(201).json({ success: true, data: newVideo });
@@ -99,10 +100,10 @@ router.post('/', authenticateUser, authorizeAdmin, async (req, res) => {
 // 更新视频数据
 router.put('/:id', authenticateUser, authorizeAdmin, async (req, res) => {
   try {
-      const { id } = req.params;
-      // id是整数类型
-      
-      // 检查数据是否存在
+    const { id } = req.params;
+    const { title, description, video_url, ispublic } = req.body;
+    
+    // 检查数据是否存在
     const existingVideo = await select('videos', '*', [{'type':'eq','column':'id','value':id}]);
     if (!existingVideo || existingVideo.length === 0) {
       return res.status(404).json({ success: false, error: '视频数据不存在' });
@@ -112,19 +113,20 @@ router.put('/:id', authenticateUser, authorizeAdmin, async (req, res) => {
     const user = await getUserFromSession(req);
     
     // 检查权限 - 只有管理员或视频所属者可以更新
-    if (user && user.trader_uuid !== existingVideo[0].trader_uuid && user.role !== 'admin') {
+    if (user && user.trader_uuid !== existingVideo[0].trader_uuid && user.role !== 'superadmin') {
       return res.status(403).json({ success: false, error: '没有权限更新此视频' });
     }
     
-    
+    // 构建更新数据
+    const updateData = {};
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (video_url !== undefined) updateData.video_url = video_url;
     if (ispublic !== undefined) updateData.ispublic = ispublic;
     
     const updatedVideo = await update('videos', updateData, [
-            { type: 'eq', column: 'id', value: id }
-        ]);
+      { type: 'eq', column: 'id', value: id }
+    ]);
     
     res.status(200).json({ success: true, data: updatedVideo });
   } catch (error) {
@@ -147,15 +149,18 @@ router.delete('/:id', authenticateUser, authorizeAdmin, async (req, res) => {
     // 获取登录用户信息
     const user = await getUserFromSession(req);
     
-    // 检查权限 - 只有管理员或视频所属者可以删除
-    if (user && user.trader_uuid !== existingVideo[0].trader_uuid && user.role !== 'admin') {
+    // 检查权限 - 只有超级管理员或视频所属者可以删除
+    if (user && user.trader_uuid !== existingVideo[0].trader_uuid && user.role !== 'superadmin') {
       return res.status(403).json({ success: false, error: '没有权限删除此视频' });
     }
     
-    // 删除视频
-    await deleteData('videos', [
-        { type: 'eq', column: 'id', value: id } ,{ type: 'eq', column: 'trader_uuid', value: req.user.trader_uuid }
-    ]);
+    // 删除视频 - 超级管理员可以删除任何视频，普通用户只能删除自己的
+    const deleteConditions = [{ type: 'eq', column: 'id', value: id }];
+    if (user.role !== 'superadmin') {
+      deleteConditions.push({ type: 'eq', column: 'trader_uuid', value: user.trader_uuid });
+    }
+    
+    await deleteData('videos', deleteConditions);
     
     res.status(200).json({ success: true, message: '视频数据已成功删除' });
   } catch (error) {
